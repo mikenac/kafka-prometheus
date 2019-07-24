@@ -1,0 +1,54 @@
+version: "3"
+services:
+  zookeeper:
+    image: 'confluentinc/cp-zookeeper:latest'
+    volumes:
+      - 'zookeeper_data:/var/lib/zookeeper/data'
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+  prom:
+    image: 'quay.io/prometheus/prometheus:v2.0.0'
+    volumes:
+      - $PWD/monitor/prom.yml:/etc/prometheus/prometheus.yml
+    command: "--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - jmxexporter
+  grafana:
+    image: grafana/grafana
+    ports:
+     - "3000:3000"
+    depends_on:
+      - prom
+  jmxexporter:
+    image: sscaling/jmx-prometheus-exporter
+    ports:
+      - "5556:5556"
+    environment:
+      SERVICE_PORT: 5556
+    volumes:
+      - $PWD/jmx/jmx.yml:/opt/jmx_exporter/config.yml
+  kafka:
+    image: 'confluentinc/cp-kafka:latest'
+    depends_on:
+      - zookeeper
+    ports:
+      - '9092:9092'
+      - '8888:8888'
+    volumes:
+      - 'kafka_data:/var/lib/kafka/data'
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka:29092,LISTENER_DOCKER_EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT,LISTENER_DOCKER_EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      ALLOW_PLAINTEXT_LISTENER: 'yes'
+      KAFKA_JMX_PORT: 8888
+      KAFKA_JMX_HOSTNAME: 10.170.11.19
+volumes:
+  kafka_data: {}
+  zookeeper_data: {}
